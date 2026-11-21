@@ -29,7 +29,6 @@ A portable, self-contained executable: no separate .NET installation is required
 - [Optional startup setup with Windows Task Scheduler](#optional-startup-setup-with-windows-task-scheduler)
 - [Troubleshooting](#troubleshooting)
 - [Build and verification](#build-and-verification)
-- [Command architecture](#command-architecture)
 - [License and third-party notices](#license-and-third-party-notices)
 - [Donations](#donations)
 
@@ -558,45 +557,9 @@ The regression harness checks parsing, dispatch, and in-memory planning without 
 dotnet run --project Tests/VDL.Tests.csproj -- --inspect-title-start "Total Commander"
 ```
 
-## Command architecture
-
-
-The invocation path is:
-
-```text
-CommandLine parsing and validation
-  -> Options
-  -> ApplicationCommandFactory
-  -> IApplicationCommand.ExecuteAsync
-  -> DesktopCommandReceiver
-  -> TaskView planning / ITaskViewCommand mutations
-  -> TaskView.ApplyAsync / physical system commands
-```
-
-- `TaskView/ApplicationCommands.cs` contains application commands for running, moving, creating, cleaning, querying, and profile operations. Movement variants capture their `MoveMode` in `Options`. It also contains physical commands for launching processes, moving windows, switching desktops, and changing window state.
-- `TaskView/TaskViewCommands.cs` contains deferred blueprint mutations: create, rename, remove, reorder, wallpaper, and profile restoration. `TaskView.Execute` validates each mutation before executing it in memory.
-- `TaskView/TaskView.cs` represents individual desktops and desktop groups. Group labels do not represent additional physical desktops.
-- `TaskView/TaskViewExecution.cs` resolves and reserves destinations, serializes profiles, and synchronizes the intended layout with Windows. Window moves occur after all planned destination desktops have been materialized.
-- `TaskView/DesktopCommandReceiver.cs` coordinates window discovery, stability polling, launch options, movement retries, post-move actions, and output. `Program.cs` handles process entry, command wiring, timing, and top-level errors.
-
-Planning failures do not change Windows. Synchronization tracks the desktops owned by its initial snapshot and leaves concurrently added desktops outside that snapshot intact. Failure cleanup removes newly created desktops only when they are empty; already completed window moves, renames, and wallpaper updates are not automatically undone.
-
-
-### Shared window snapshots and polling
-
-`SystemWindows` collects window information on demand and shares an immutable snapshot. All-window, per-process, and per-handle queries use this cache. When a snapshot expires, one caller performs collection; concurrent callers await that refresh and recheck the cache before collecting. There is no background refresh timer, so no window scans run solely to maintain the cache when no caller needs data.
-
-The cache starts with a 25 ms reuse interval. Its adaptive policy measures successful collection and snapshot-indexing wall time, smooths it with a 25% exponential moving average, and selects three times that cost, bounded to 25-100 ms. Cheap collection retains the original 25 ms behavior; expensive collection permits more reuse. This is a workload throttle, not a CPU-utilization measurement. Adding readers does not itself shorten the interval.
-
-Each snapshot has an increasing version, a monotonic capture timestamp, and read-only indexes by PID and window handle. Per-process stabilization loops still wait 25 ms between checks. Repeated reads of the same snapshot cannot make a window appear stable: stability advances only with a newer observation and uses its capture timestamp.
-
-Callers can require a fresher snapshot than the adaptive interval would otherwise permit. Discovery and individual-handle lookups request at most 25 ms-old data. A process's first stability observation does too. While waiting for stability, its freshness cap follows the remaining interval, with 25-100 ms bounds, tightening back to 25 ms near the deadline. Zero and short stability settings retain the original freshness resolution. The best-handle/count rules, main/non-main stability periods, search modes, and outer process-discovery backoff remain in place.
-
-Window moves, desktop switches, launch attempts, window-state commands, and explicit desktop refreshes invalidate the snapshot. The next request then collects fresh data regardless of the adaptive interval. A collection invalidated while running is repeated before its result can be used. Changes made outside VDL are observed on a subsequent refresh; collection is an observation pass, not an atomic freeze of Windows. Native enumeration remains synchronous and cannot be interrupted halfway through by a cancellation token.
-
-`--verbose` reports the adaptive reuse interval after a filtered search. The old unused `AdaptiveThreshold` helper remains removed; the dedicated `WindowSnapshotFreshnessPolicy` implements this bounded policy. `SimpleThresholdCache` continues to serve the separate desktop-information cache.
-
 ### Read-only polling measurements
+
+**For development only.** This measurement harness is intended for developers evaluating polling performance and changes to the cache. It is not needed to install, configure, or use VDL.
 
 Run the measurement harness in Release mode:
 
