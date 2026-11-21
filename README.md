@@ -1,5 +1,7 @@
 # VDL — Virtual Desktop Launcher
 
+English | [Русский](README.ru.md)
+
 VDL (Virtual Desktop Launcher) is a Windows console utility for moving application windows between virtual desktops, launching applications on selected desktops, creating and cleaning desktops, and saving desktop layouts.
 
 The Windows virtual-desktop integration uses [Slion's VirtualDesktop library](https://github.com/Slion/VirtualDesktop), available as the `Slions.VirtualDesktop` NuGet package. Thanks to its authors and maintainers for making this functionality available.
@@ -12,7 +14,7 @@ A portable, self-contained executable: no separate .NET installation is required
 
 [All releases and release notes](https://github.com/statprograms/VDL/releases)
 
-The download link works once a release containing an asset named `VDL.exe` has been published. If no release is available yet, use the [standalone build instructions](#standalone-executable-for-users). The latest-download link stays the same when subsequent releases retain that asset name.
+[Release v1.0.0](https://github.com/statprograms/VDL/releases/tag/v1.0.0) is available. The latest-download link stays the same when subsequent releases retain the asset name `VDL.exe`. To build your own executable, follow the [build instructions](#build-and-verification).
 
 ## Contents
 
@@ -24,8 +26,8 @@ The download link works once a release containing an asset named `VDL.exe` has b
 - [Switch reference](#switch-reference)
 - [Application arguments and quoting](#application-arguments-and-quoting)
 - [Profiles](#profiles)
+- [Optional startup setup with Windows Task Scheduler](#optional-startup-setup-with-windows-task-scheduler)
 - [Troubleshooting](#troubleshooting)
-- [Standalone executable for users](#standalone-executable-for-users)
 - [Build and verification](#build-and-verification)
 - [Command architecture](#command-architecture)
 - [License and third-party notices](#license-and-third-party-notices)
@@ -468,6 +470,36 @@ Restoration first reuses desktops with matching names, then reuses remaining des
 
 The destination directory must exist when saving. Saving to an existing file overwrites it. Wallpaper paths refer to files available on the machine that loads the profile; saving a profile does not copy wallpaper images. A `null` wallpaper does not request a wallpaper update.
 
+## Optional startup setup with Windows Task Scheduler
+
+You can use VDL with Windows Task Scheduler to launch a small set of applications and arrange them on desktops whenever you sign in. This is optional. A desktop profile restores desktop layout only; it does not reopen applications. A startup script supplies the run commands that launch and place them.
+
+Save the following as `C:\Scripts\VDL-startup.cmd`, adjusting the VDL path and application paths for your machine:
+
+```cmd
+@echo off
+set "VDL=C:\Tools\VDL\VDL.exe"
+"%VDL%" run notepad.exe Work --create --process notepad --main --timeout 15000
+if errorlevel 1 exit /b %errorlevel%
+"%VDL%" run "C:\Program Files\Mozilla Firefox\firefox.exe" Browsing --create --process firefox --main --timeout 15000 -- --new-window "https://example.com"
+```
+
+This example launches Notepad on `Work` and a Firefox window on `Browsing`, creating the named desktops if needed. Replace Firefox with an application installed on your machine. The commands run sequentially, and the explicit process filters keep the search tied to each application.
+
+In **Task Scheduler**, choose **Create Task** and configure:
+
+1. **General:** choose your Windows account and **Run only when user is logged on**.
+2. **Triggers:** add **At log on** for that account. An optional delay of about 30 seconds gives the desktop shell time to initialize.
+3. **Actions:** choose **Start a program**. Set **Program/script** to `C:\Windows\System32\cmd.exe`.
+4. Set **Add arguments** to `/c ""C:\Scripts\VDL-startup.cmd""` and **Start in** to `C:\Scripts`.
+5. Save the task, then use **Run** to test it while signed in.
+
+Use an **At log on** trigger rather than **At startup** for this GUI workflow. A task configured to run without a logged-on user can execute outside the interactive desktop and will not reliably arrange the windows you see.
+
+Run the script manually once before enabling it at sign-in. Applications can reuse existing processes or windows, so a repeated run is not guaranteed to create a second independent window or an identical workspace. Add application-specific arguments and more precise window filters where needed. Task Scheduler invokes the commands; VDL does not provide a general snapshot of application sessions or saved window geometry.
+
+See Microsoft's [Task Scheduler security-context documentation](https://learn.microsoft.com/en-us/windows/win32/taskschd/security-contexts-for-running-tasks) for details about task logon types.
+
 ## Troubleshooting
 
 | Symptom | Explanation and next step |
@@ -487,36 +519,6 @@ The move report prints the selected handle and captured title before attempting 
 
 There is no public dry-run switch or general undo command. Planning failures leave Windows unchanged, but a failure after synchronization begins can leave completed moves, names, and wallpaper changes in place. Cleanup only removes newly created desktops when they are empty. Native desktop behavior depends on the Windows version and the virtual-desktop integration available to the application.
 
-## Standalone executable for users
-
-The `Standalone` publish profile packages VDL, the .NET runtime, and its dependencies into one Windows x64 executable. Users do not need to install the .NET SDK or .NET runtime separately. Windows virtual-desktop support is still required.
-
-Build the distributable from the project directory:
-
-```powershell
-dotnet publish VDL.csproj -c Release -p:PublishProfile=Standalone
-```
-
-The file to distribute is:
-
-```text
-output/publish/win-x64/VDL.exe
-```
-
-Copy that executable to any directory, or add its directory to `PATH`. No DLLs, `.deps.json`, `.runtimeconfig.json`, or debug-symbol files need to accompany it. For example, from its directory in CMD:
-
-```cmd
-VDL.exe --help
-VDL.exe list
-VDL.exe move-left --title-start "Total Commander"
-```
-
-In PowerShell, use `./VDL.exe` when the executable is in the current directory rather than on `PATH`.
-
-The executable is specific to Windows x64; it is not an ARM64-native build. On first use, .NET extracts bundled native runtime components to its per-user temporary bundle cache, which must be writable. A single distributed file therefore does not mean the runtime never writes extracted files. Application arguments, profile files, and wallpapers still refer to external files supplied by the user.
-
-The profile enables bundle compression, embeds debugging information, and disables trimming to preserve the runtime-generated COM interop used by the desktop integration. Ordinary `dotnet build` and IDE debugging continue to use the existing development configuration. Use `dotnet publish` with this profile when preparing a release for users. Since the runtime is bundled, publish a new executable when updating the included .NET runtime or dependencies.
-
 ## Build and verification
 
 The project targets .NET 10 for Windows. It uses `Slions.VirtualDesktop`, `System.CommandLine`, and Polly through NuGet package references. Dependency licenses and notices are listed in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), with original notice files retained under [`licenses/`](licenses/).
@@ -524,6 +526,7 @@ The project targets .NET 10 for Windows. It uses `Slions.VirtualDesktop`, `Syste
 ```powershell
 dotnet build VDL.slnx
 dotnet build VDL.slnx -c Release
+dotnet publish VDL.csproj -c Release -p:PublishProfile=Standalone
 dotnet run --project Tests/VDL.Tests.csproj
 dotnet run --no-launch-profile -- --help
 ```
@@ -609,4 +612,4 @@ TKvRzDo7wJGjH6jXpq1k4VzG9uB8iHNEXd
 
 Please send **only USDT on the Tron (TRC20) network** to this address. Select **Tron / TRC20** as the withdrawal network in your wallet or exchange.
 
-Thank you for supporting Virtual Desktop Launcher!
+Thanks!
