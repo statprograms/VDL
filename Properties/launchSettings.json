@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "VDL": {
+      "commandName": "Project",
+      "commandLineArgs": "--help"
+    }
+  }
+}

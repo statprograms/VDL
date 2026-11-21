@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/VDL.Tests.csproj" />
+  </Folder>
+  <Project Path="VDL.csproj" />
+</Solution>

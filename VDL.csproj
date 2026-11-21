@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<Product>VDL - Virtual Desktop Launcher</Product>
+		<AssemblyTitle>VDL - Virtual Desktop Launcher</AssemblyTitle>
+		<Description>Launch applications, move windows, and manage Windows virtual desktops from the command line.</Description>
+		<Authors>statprograms</Authors>
+		<RepositoryUrl>https://github.com/statprograms/VDL</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="Tests\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="LICENSE" LogicalName="VDL.LICENSE" />
+		<EmbeddedResource Include="THIRD-PARTY-NOTICES.txt" LogicalName="VDL.THIRD-PARTY-NOTICES.txt" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="Polly" Version="8.6.6" />
+	  <PackageReference Include="Slions.VirtualDesktop" Version="6.9.2" />
+	  <PackageReference Include="System.CommandLine" Version="2.0.5" />
+	</ItemGroup>
+
+</Project>
