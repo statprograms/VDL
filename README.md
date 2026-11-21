@@ -376,6 +376,26 @@ These switches are for run/move operations. `--maximize` and `--minimize` are mu
 
 ### Search mode and timing
 
+When VDL searches for windows to move, an application may still be starting, opening its main window, or replacing a splash screen. These options control how long VDL looks for a match and how it decides that the matching windows have settled. All times are in milliseconds: `1000` means one second.
+
+**Timeout — the total search budget.** `--timeout` (default `5000`, or five seconds) limits the search, including retries when no window matches and the time spent checking stability. It is a maximum budget, so a successful search can finish sooner. If the budget expires, VDL can use matches that have already become stable; if none have, there is no stable window to move. Increasing this value helps applications whose windows appear slowly. It does not terminate the launched application or impose a time limit on the entire VDL command: launch, the initial delay, and the move itself are outside this search budget.
+
+**Stability — how long a candidate must remain unchanged.** `--stability` (default `500`) gives each candidate process time to finish creating or replacing windows. On fresh window snapshots, VDL checks that the best matching window has the same handle and that the number of matching windows for that process stays the same. A change restarts that process's stability interval; losing all matches clears it. A main-window candidate needs the configured interval, while a non-main candidate needs 50% longer (`750` ms with the default). Increasing stability helps avoid selecting a short-lived startup window, but also makes discovery slower. This checks window identity and count, so it does not establish that a document has finished loading or that a title will never change. Even `--stability 0` needs a later fresh observation to confirm the candidate. Checks occur periodically, so completion is not timed to the exact millisecond.
+
+**Delay — a pause before searching.** `--delay` (default `0`) waits once before VDL starts selecting windows. For a `run` command, the application is launched first, giving it this extra time to start. The pause does not count toward the timeout and does not count as evidence of stability. Use it when an application predictably needs a head start; use timeout when you want VDL to start looking immediately and wait as needed.
+
+For example, `--delay 2000 --timeout 10000 --stability 500` means: wait two seconds, then search for up to ten seconds, checking stability within those ten seconds. It does not add another half-second after the timeout. A match can complete the search sooner, and launching and moving can add to the total command duration.
+
+**Search modes — when enough stable results have been found.** `--mode` chooses the completion rule; all modes still apply your filters and the stability check:
+
+- **Fast** allows the search to finish as soon as any candidate process has stable matching windows. Use it when the filter is specific and quick completion matters.
+- **Balanced** (the default) allows early completion when a candidate process has a stable matching main window. It gives main-window candidates a chance before stopping for another kind of window, but can also finish when all candidate processes have completed their checks. It does not require the `--main` filter; add `--main` if only main windows are acceptable.
+- **Thorough** does not stop early because one candidate is ready. It waits for the discovered candidate processes to finish their stability checks, or for the search budget to expire. It can finish before the timeout if all candidates complete; it does not guarantee finding windows that appear later.
+
+`--all` and `--single` disable the early completion rules of Fast and Balanced so the search can collect results across candidate processes. Modes control when discovery finishes; they do not make an ambiguous filter more precise. For example, a terminal title containing your command line can still match `--title Commander`; use a more specific filter such as `--title-start "Total Commander"`.
+
+Timeout, stability, and mode apply to the matching-window search used by run/move commands. A plain `VDL move-left` or `VDL move-right` selects the active window directly and does not perform that search. Delay still applies before selecting the active window.
+
 | Switch | Aliases | Default and limits | Example |
 | --- | --- | --- | --- |
 | `--mode <Fast\|Balanced\|Thorough>` | `/Mode`, `/m` | Balanced. Controls when discovery may return stable matches. | `VDL move-left --title-start "Total Commander" --mode Thorough` |
@@ -383,19 +403,13 @@ These switches are for run/move operations. `--maximize` and `--minimize` are mu
 | `--stability <ms>` | `/StabilityTime`, `/st` | 500; accepted range 0–30000, no greater than timeout. | `VDL move 2 --process MyApp --stability 1000 --timeout 10000` |
 | `--delay <ms>` | `/Delay`, `/d` | 0; accepted range 0–300000. Wait before starting the window search. | `VDL run "C:\Path\SlowApp.exe" Work --create --delay 2000` |
 
-These switches are for run/move commands. Times are milliseconds. Delay precedes discovery, so it adds to elapsed time outside the search budget. For run commands, the application is launched before this search delay.
+Examples of selecting each mode:
 
 ```cmd
 VDL move-left --title-start "Total Commander" --mode Fast
 VDL move-left --title-start "Total Commander" --mode Balanced
 VDL move-left --title-start "Total Commander" --mode Thorough
 ```
-
-- **Fast** may return as soon as any matching window is stable.
-- **Balanced** can stop when a matching main-window candidate is stable.
-- **Thorough** waits for matching processes to stabilize or for the search budget to expire.
-
-Stability tracks the best candidate handle and matching window count. A non-main candidate waits 50% longer than the configured stability interval. Stability does not mean that an application's document has finished loading or that its title will never change. Increasing timing values cannot resolve an ambiguous filter; make the filter more specific first.
 
 ### Launch arguments and execution
 
